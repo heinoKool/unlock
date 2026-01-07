@@ -116,7 +116,7 @@
             </div>
             <div class="flex items-center justify-center space-x-4">
                 <span class="text-lg text-gray-400">TESTING PIN:</span>
-                <span id="pin-display" class="text-4xl font-bold font-cyber text-white">----</span>
+                <span id="pin-display" class="text-4xl font-bold font-cyber text-white">-----</span>
             </div>
             <div id="progress-bar-container" class="w-full bg-gray-800 h-2 mt-4 rounded overflow-hidden">
                 <div id="progress-bar" class="bg-green-500 h-full w-0"></div>
@@ -126,7 +126,7 @@
             <div class="mt-6 border-t border-green-900 pt-4">
                 <div class="text-xs text-green-600 mb-2 font-mono">MANUAL_OVERRIDE_PROTOCOL</div>
                 <div class="flex space-x-2">
-                    <input id="manual-pin" type="text" maxlength="4" class="bg-black border border-green-700 text-green-500 font-cyber text-center w-full p-2 focus:outline-none focus:border-green-400 placeholder-green-900 tracking-widest text-xl" placeholder="????">
+                    <input id="manual-pin" type="text" maxlength="5" class="bg-black border border-green-700 text-green-500 font-cyber text-center w-full p-2 focus:outline-none focus:border-green-400 placeholder-green-900 tracking-widest text-xl" placeholder="?????">
                     <button id="manual-btn" class="bg-green-900/40 hover:bg-green-500 hover:text-black text-green-400 border border-green-600 px-4 py-2 transition-colors font-bold text-sm font-cyber">
                         ENTER
                     </button>
@@ -197,6 +197,9 @@
                 <button id="run-btn" class="flex-1 py-3 bg-green-900/30 border border-green-500 text-green-400 hover:bg-green-500 hover:text-black transition-all font-cyber font-bold tracking-widest uppercase">
                     COMPILE & RUN
                 </button>
+                <button id="abort-btn" class="px-6 border border-yellow-900 text-yellow-400 hover:bg-yellow-900/30 transition-colors hidden">
+                    ABORT
+                </button>
                 <button id="reset-btn" class="px-6 border border-red-900 text-red-500 hover:bg-red-900/30 transition-colors hidden">
                     RESET
                 </button>
@@ -250,7 +253,7 @@
         }
 
         // --- GAME STATE & DOM ---
-        const TARGET_PIN = 4711;
+        const TARGET_PIN = 14712;
         const dom = {
             start: document.getElementById('input-start'),
             end: document.getElementById('input-end'),
@@ -265,6 +268,7 @@
             ring: document.getElementById('processing-ring'),
             foundMsg: document.getElementById('found-message'),
             runBtn: document.getElementById('run-btn'),
+            abortBtn: document.getElementById('abort-btn'),
             resetBtn: document.getElementById('reset-btn'),
             manualInput: document.getElementById('manual-pin'),
             manualBtn: document.getElementById('manual-btn')
@@ -287,7 +291,7 @@
         function reset() {
             clearInterval(intervalId);
             isRunning = false; isUnlocked = false;
-            dom.display.innerText = "----";
+            dom.display.innerText = "-----";
             dom.bar.style.width = "0%";
             dom.status.innerHTML = '<span class="text-red-500 glow-text-red">LOCKED</span>';
             dom.lock.className = 'fa-solid fa-lock text-6xl text-red-500 transition-colors duration-300';
@@ -297,7 +301,7 @@
             
             // Clear manual input
             dom.manualInput.value = '';
-            dom.manualInput.placeholder = '????';
+            dom.manualInput.placeholder = '?????';
             dom.manualInput.classList.remove('border-red-500', 'shake');
             
             // Inputs editable again
@@ -309,6 +313,7 @@
             dom.runBtn.innerText = "COMPILE & RUN";
             dom.runBtn.classList.remove('opacity-50');
             dom.resetBtn.classList.add('hidden');
+            if (dom.abortBtn) dom.abortBtn.classList.add('hidden');
             
             dom.console.innerHTML = '';
             log('System reset. Waiting for code...');
@@ -380,6 +385,7 @@
             dom.runBtn.classList.add('opacity-50');
             dom.runBtn.innerText = "EXECUTING...";
             dom.ring.style.opacity = '1';
+            if (dom.abortBtn) dom.abortBtn.classList.remove('hidden');
 
             log(`Compiling... OK.`, 'success');
             log(`Starting Loop: i=${startVal} to i<${endVal}, Step: +${stepIncrement}`, 'info');
@@ -388,7 +394,7 @@
             // 3. THE LOOP (Simulated via setInterval)
             intervalId = setInterval(() => {
                 // UI Update
-                dom.display.innerText = i.toString().padStart(4, '0');
+                dom.display.innerText = i.toString().padStart(5, '0');
                 const progress = ((i - startVal) / (endVal - startVal)) * 100;
                 dom.bar.style.width = `${Math.min(progress, 100)}%`;
 
@@ -412,12 +418,13 @@
                     clearInterval(intervalId);
                     finish(i, usesLoopVar);
                 }
-            }, 5); // Speed of simulation
+            }, 42); // Speed of simulation
         }
 
         function finish(finalI, usesLoopVar) {
             dom.ring.style.opacity = '0';
             dom.resetBtn.classList.remove('hidden');
+            if (dom.abortBtn) dom.abortBtn.classList.add('hidden');
             
             if (!isUnlocked) {
                  log(`FINISHED: Loop ended at ${finalI}.`, 'info');
@@ -429,6 +436,24 @@
             } else {
                 log(`PROGRAM ENDED. Resources wasted testing up to ${finalI-1}.`, 'info');
             }
+        }
+
+        // --- ABORT EXECUTION ---
+        function abortExecution() {
+            if (!isRunning) return;
+            clearInterval(intervalId);
+            isRunning = false;
+            dom.ring.style.opacity = '0';
+            dom.runBtn.disabled = false;
+            dom.runBtn.classList.remove('opacity-50');
+            dom.runBtn.innerText = "COMPILE & RUN";
+            dom.start.disabled = false;
+            dom.end.disabled = false;
+            dom.step.disabled = false;
+            dom.varInput.disabled = false;
+            if (dom.abortBtn) dom.abortBtn.classList.add('hidden');
+            dom.resetBtn.classList.remove('hidden');
+            log('EXECUTION ABORTED by user.', 'warn');
         }
 
         // --- MANUAL OVERRIDE LOGIC ---
@@ -451,7 +476,7 @@
                 
                 setTimeout(() => {
                     dom.manualInput.classList.remove('border-red-500', 'shake');
-                    dom.manualInput.placeholder = '????';
+                    dom.manualInput.placeholder = '?????';
                 }, 1000);
             }
         }
@@ -459,6 +484,7 @@
         // Event Listeners
         dom.runBtn.addEventListener('click', runScript);
         dom.resetBtn.addEventListener('click', reset);
+        if (dom.abortBtn) dom.abortBtn.addEventListener('click', abortExecution);
         
         // Manual Entry Listeners
         dom.manualBtn.addEventListener('click', checkManualPin);
