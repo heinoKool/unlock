@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Crypto Wallet Brute Force - Student Edition</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Courier+Prime:wght@400;700&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
+
+    <style>
+        /* Cyberpunk Colors & Utilities */
+        :root {
+            --neon-green: #0f0;
+            --neon-red: #ff003c;
+            --neon-blue: #0cebeb;
+            --bg-dark: #050505;
+        }
+
+        body {
+            background-color: var(--bg-dark);
+            color: var(--neon-green);
+            font-family: 'Courier Prime', monospace;
+            overflow: hidden; 
+        }
+
+        .font-cyber { font-family: 'Orbitron', sans-serif; }
+
+        /* CRT Scanline Effect */
+        .scanlines {
+            position: fixed;
+            top: 0; left: 0; width: 100vw; height: 100vh;
+            background: linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,255,255,0) 50%, rgba(0,0,0,0.2) 50%, rgba(0,0,0,0.2));
+            background-size: 100% 4px;
+            pointer-events: none; z-index: 50; opacity: 0.6;
+        }
+
+        /* Glow Effects */
+        .glow-text-green { text-shadow: 0 0 5px var(--neon-green); }
+        .glow-text-red { text-shadow: 0 0 5px var(--neon-red); }
+        .glow-box { box-shadow: 0 0 15px rgba(0, 255, 0, 0.2); }
+        
+        /* Input Styles for Code Gaps */
+        .code-input {
+            background: rgba(0, 50, 0, 0.3);
+            border: none;
+            border-bottom: 2px solid var(--neon-green);
+            color: #fff;
+            font-family: 'Courier Prime', monospace;
+            padding: 2px 4px;
+            outline: none;
+            transition: all 0.3s;
+        }
+        .code-input:focus {
+            background: rgba(0, 100, 0, 0.5);
+            box-shadow: 0 0 10px var(--neon-green);
+        }
+        .code-input::placeholder { color: rgba(0, 255, 0, 0.3); font-style: italic; }
+
+        /* Animations */
+        @keyframes unlock-pulse {
+            0% { transform: scale(1); filter: drop-shadow(0 0 0px var(--neon-green)); }
+            50% { transform: scale(1.1); filter: drop-shadow(0 0 30px var(--neon-green)); }
+            100% { transform: scale(1); filter: drop-shadow(0 0 0px var(--neon-green)); }
+        }
+        .unlocked-anim { animation: unlock-pulse 0.5s ease-in-out; }
+        .blink { animation: blinker 1s linear infinite; }
+        @keyframes blinker { 50% { opacity: 0; } }
+        
+        /* Shake Animation for Wrong PIN */
+        @keyframes shake {
+            0% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            50% { transform: translateX(5px); }
+            75% { transform: translateX(-5px); }
+            100% { transform: translateX(0); }
+        }
+        .shake { animation: shake 0.3s ease-in-out; }
+
+        /* Syntax Highlighting Classes */
+        .kwd { color: #ff79c6; font-weight: bold; } /* keyword */
+        .typ { color: #8be9fd; font-style: italic; } /* type */
+        .fn { color: #50fa7b; } /* function */
+        .num { color: #bd93f9; } /* number */
+        .com { color: #6272a4; } /* comment */
+        .str { color: #f1fa8c; } /* string */
+    </style>
+</head>
+<body class="flex flex-col md:flex-row h-screen w-full relative">
+
+    <!-- CRT Overlay -->
+    <div class="scanlines"></div>
+
+    <!-- LEFT SIDE: GUI / WALLET -->
+    <div class="w-full md:w-1/2 flex flex-col items-center justify-center border-b-2 md:border-b-0 md:border-r-2 border-green-900 bg-black p-8 relative">
+        <div class="absolute top-4 left-4 text-xs text-green-800">SECURE_VAULT_OS v9.2</div>
+        
+        <h1 class="font-cyber text-4xl md:text-5xl mb-8 tracking-widest text-center" id="status-text">
+            <span class="text-red-500 glow-text-red">LOCKED</span>
+        </h1>
+
+        <div class="relative mb-10">
+            <div id="safe-circle" class="w-48 h-48 rounded-full border-4 border-red-600 flex items-center justify-center transition-all duration-500 shadow-[0_0_20px_rgba(255,0,0,0.5)] bg-gray-900">
+                <i id="lock-icon" class="fa-solid fa-lock text-6xl text-red-500 transition-colors duration-300"></i>
+            </div>
+            <div id="processing-ring" class="absolute top-0 left-0 w-48 h-48 rounded-full border-t-4 border-green-400 opacity-0 transition-opacity animate-spin duration-75"></div>
+        </div>
+
+        <div class="bg-gray-900 border border-green-800 p-6 rounded w-full max-w-sm glow-box">
+            <div class="flex justify-between items-end border-b border-green-900 pb-2 mb-2">
+                <span class="text-xs text-green-600">INPUT_STREAM</span>
+                <span class="text-xs text-green-600">PIN_CHECKER</span>
+            </div>
+            <div class="flex items-center justify-center space-x-4">
+                <span class="text-lg text-gray-400">TESTING PIN:</span>
+                <span id="pin-display" class="text-4xl font-bold font-cyber text-white">----</span>
+            </div>
+            <div id="progress-bar-container" class="w-full bg-gray-800 h-2 mt-4 rounded overflow-hidden">
+                <div id="progress-bar" class="bg-green-500 h-full w-0"></div>
+            </div>
+
+            <!-- MANUAL OVERRIDE SECTION -->
+            <div class="mt-6 border-t border-green-900 pt-4">
+                <div class="text-xs text-green-600 mb-2 font-mono">MANUAL_OVERRIDE_PROTOCOL</div>
+                <div class="flex space-x-2">
+                    <input id="manual-pin" type="text" maxlength="4" class="bg-black border border-green-700 text-green-500 font-cyber text-center w-full p-2 focus:outline-none focus:border-green-400 placeholder-green-900 tracking-widest text-xl" placeholder="????">
+                    <button id="manual-btn" class="bg-green-900/40 hover:bg-green-500 hover:text-black text-green-400 border border-green-600 px-4 py-2 transition-colors font-bold text-sm font-cyber">
+                        ENTER
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div id="found-message" class="mt-8 text-center opacity-0 transition-opacity duration-500">
+            <p class="text-yellow-400 text-lg">PASSWORD FOUND: <span class="font-bold text-2xl">4711</span></p>
+        </div>
+    </div>
+
+    <!-- RIGHT SIDE: STUDENT EDITOR -->
+    <div class="w-full md:w-1/2 flex flex-col bg-[#0d0d0d] p-4 md:p-8 relative">
+        <div class="absolute top-4 right-4 text-xs text-green-800">DEV_MODE // USER: STUDENT</div>
+
+        <!-- Documentation Helper -->
+        <div class="mb-4 p-3 border border-green-900 bg-gray-900 rounded text-xs md:text-sm text-gray-400 font-mono">
+            <div class="text-green-500 font-bold border-b border-green-900 mb-2 pb-1">AVAILABLE API (DOCS)</div>
+            <div class="flex flex-col space-y-1">
+                <div><span class="typ">Wallet</span> <span class="text-white">wallet</span>; <span class="com">// Das Ziel-Objekt</span></div>
+                <div><span class="typ">void</span> <span class="fn">wallet.testPin</span>(<span class="typ">int</span> code); <span class="com">// Testet einen PIN-Code</span></div>
+            </div>
+        </div>
+
+        <!-- Interactive Code Editor -->
+        <div class="flex-grow flex flex-col border border-gray-700 rounded-lg overflow-hidden glow-box bg-[#1e1e1e] mb-6 shadow-2xl">
+            <div class="bg-gray-800 px-4 py-2 flex items-center justify-between border-b border-gray-700">
+                <div class="flex space-x-2">
+                    <div class="w-3 h-3 rounded-full bg-red-500"></div>
+                    <div class="w-3 h-3 rounded-full bg-yellow-500"></div>
+                    <div class="w-3 h-3 rounded-full bg-green-500"></div>
+                </div>
+                <span class="text-xs text-gray-400 font-sans">BruteForce.java *</span>
+            </div>
+
+            <!-- Code Form -->
+            <div class="p-6 overflow-auto text-sm md:text-base leading-relaxed font-mono relative h-full">
+                <div class="text-gray-300">
+                    <span class="kwd">public class</span> <span class="typ">HackerTool</span> {<br>
+                    &nbsp;&nbsp;<span class="kwd">public static void</span> <span class="fn">main</span>(<span class="typ">String</span>[] args) {<br>
+                    &nbsp;&nbsp;&nbsp;&nbsp;<span class="typ">Wallet</span> wallet = <span class="kwd">new</span> <span class="typ">Wallet</span>(<span class="str">"TargetID"</span>);<br>
+                    <br>
+                    &nbsp;&nbsp;&nbsp;&nbsp;<span class="com">// TODO: Ergänze die Schleife und übergebe</span><br>
+                    &nbsp;&nbsp;&nbsp;&nbsp;<span class="com">// die Zählvariable 'i' an die Methode.</span><br>
+                    <br>
+                    &nbsp;&nbsp;&nbsp;&nbsp;<span class="kwd">for</span> (<span class="kwd">int</span> i = <input id="input-start" class="code-input w-16 text-center" placeholder="Start">; i < <input id="input-end" class="code-input w-20 text-center" placeholder="Ende">; <input id="input-step" class="code-input w-24 text-center" placeholder="???">) {<br>
+                    
+                    <div class="pl-12 py-2 flex items-center text-gray-300">
+                         wallet.<span class="fn">testPin</span>(<input id="input-var" class="code-input w-12 text-center" placeholder="xy" autocomplete="off">);
+                    </div>
+
+                    &nbsp;&nbsp;&nbsp;&nbsp;}<br>
+                    &nbsp;&nbsp;}<br>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <!-- Controls & Console -->
+        <div class="flex flex-col space-y-4">
+            <div class="bg-black border border-green-900 p-2 h-24 overflow-y-auto font-mono text-xs text-green-300 shadow-inner" id="console-output">
+                <div class="text-gray-500">> Compiler ready.</div>
+                <div class="text-gray-500">> Waiting for code input...</div>
+            </div>
+
+            <div class="flex space-x-2">
+                <button id="run-btn" class="flex-1 py-3 bg-green-900/30 border border-green-500 text-green-400 hover:bg-green-500 hover:text-black transition-all font-cyber font-bold tracking-widest uppercase">
+                    COMPILE & RUN
+                </button>
+                <button id="reset-btn" class="px-6 border border-red-900 text-red-500 hover:bg-red-900/30 transition-colors hidden">
+                    RESET
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- LOGIC -->
+    <script>
+        // --- SOUND ENGINE (Web Audio API) ---
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        
+        function playBeep() {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(800, audioCtx.currentTime);
+            gain.gain.setValueAtTime(0.05, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.05);
+            osc.connect(gain); gain.connect(audioCtx.destination);
+            osc.start(); osc.stop(audioCtx.currentTime + 0.05);
+        }
+
+        function playSuccess() {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            [440, 554, 659, 880].forEach((f, i) => {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.value = f;
+                gain.gain.setValueAtTime(0, audioCtx.currentTime);
+                gain.gain.linearRampToValueAtTime(0.1, audioCtx.currentTime + 0.1 + (i*0.05));
+                gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 1.5);
+                osc.connect(gain); gain.connect(audioCtx.destination);
+                osc.start(); osc.stop(audioCtx.currentTime + 2);
+            });
+        }
+        
+        function playError() {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(150, audioCtx.currentTime);
+            osc.frequency.linearRampToValueAtTime(100, audioCtx.currentTime + 0.3);
+            gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+            gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.3);
+            osc.connect(gain); gain.connect(audioCtx.destination);
+            osc.start(); osc.stop(audioCtx.currentTime + 0.3);
+        }
+
+        // --- GAME STATE & DOM ---
+        const TARGET_PIN = 4711;
+        const dom = {
+            start: document.getElementById('input-start'),
+            end: document.getElementById('input-end'),
+            step: document.getElementById('input-step'),
+            varInput: document.getElementById('input-var'),
+            console: document.getElementById('console-output'),
+            display: document.getElementById('pin-display'),
+            status: document.getElementById('status-text'),
+            lock: document.getElementById('lock-icon'),
+            circle: document.getElementById('safe-circle'),
+            bar: document.getElementById('progress-bar'),
+            ring: document.getElementById('processing-ring'),
+            foundMsg: document.getElementById('found-message'),
+            runBtn: document.getElementById('run-btn'),
+            resetBtn: document.getElementById('reset-btn'),
+            manualInput: document.getElementById('manual-pin'),
+            manualBtn: document.getElementById('manual-btn')
+        };
+
+        let intervalId = null;
+        let isRunning = false;
+        let isUnlocked = false;
+
+        function log(msg, type='info') {
+            const el = document.createElement('div');
+            el.innerText = `> ${msg}`;
+            if(type==='err') el.className = 'text-red-400 font-bold';
+            if(type==='success') el.className = 'text-green-400 font-bold';
+            if(type==='warn') el.className = 'text-yellow-400';
+            dom.console.appendChild(el);
+            dom.console.scrollTop = dom.console.scrollHeight;
+        }
+
+        function reset() {
+            clearInterval(intervalId);
+            isRunning = false; isUnlocked = false;
+            dom.display.innerText = "----";
+            dom.bar.style.width = "0%";
+            dom.status.innerHTML = '<span class="text-red-500 glow-text-red">LOCKED</span>';
+            dom.lock.className = 'fa-solid fa-lock text-6xl text-red-500 transition-colors duration-300';
+            dom.circle.className = 'w-48 h-48 rounded-full border-4 border-red-600 flex items-center justify-center transition-all duration-500 shadow-[0_0_20px_rgba(255,0,0,0.5)] bg-gray-900';
+            dom.foundMsg.style.opacity = '0';
+            dom.ring.style.opacity = '0';
+            
+            // Clear manual input
+            dom.manualInput.value = '';
+            dom.manualInput.placeholder = '????';
+            dom.manualInput.classList.remove('border-red-500', 'shake');
+            
+            // Inputs editable again
+            dom.start.disabled = false;
+            dom.end.disabled = false;
+            dom.step.disabled = false;
+            dom.varInput.disabled = false;
+            dom.runBtn.disabled = false;
+            dom.runBtn.innerText = "COMPILE & RUN";
+            dom.runBtn.classList.remove('opacity-50');
+            dom.resetBtn.classList.add('hidden');
+            
+            dom.console.innerHTML = '';
+            log('System reset. Waiting for code...');
+        }
+
+        function unlock() {
+            if(isUnlocked) return;
+            isUnlocked = true;
+            playSuccess();
+            dom.status.innerHTML = '<span class="text-green-500 glow-text-green glitch">UNLOCKED</span>';
+            dom.lock.className = 'fa-solid fa-lock-open text-6xl text-green-500 unlocked-anim';
+            dom.circle.className = 'w-48 h-48 rounded-full border-4 border-green-500 flex items-center justify-center transition-all duration-500 shadow-[0_0_40px_rgba(0,255,0,0.6)] bg-gray-900';
+            dom.foundMsg.style.opacity = '1';
+            log(`SUCCESS: PIN ${TARGET_PIN} found!`, 'success');
+        }
+
+        function runScript() {
+            if(isRunning) return;
+
+            // 1. PARSING & VALIDATION
+            const startVal = parseInt(dom.start.value);
+            const endVal = parseInt(dom.end.value);
+            const stepStr = dom.step.value.replace(/\s/g, ''); 
+            const varName = dom.varInput.value.trim();
+
+            if (isNaN(startVal)) {
+                log("SYNTAX ERROR: Invalid start value (int required).", 'err');
+                playError();
+                return;
+            }
+            if (isNaN(endVal)) {
+                log("SYNTAX ERROR: Invalid end value (int required).", 'err');
+                playError();
+                return;
+            }
+            if (endVal <= startVal) {
+                log("LOGIC ERROR: Loop condition unreachable (End <= Start).", 'err');
+                playError();
+                return;
+            }
+
+            // Step Validation
+            let stepIncrement = 0;
+            if (stepStr === 'i++' || stepStr === '++i' || stepStr === 'i=i+1' || stepStr === 'i+=1') {
+                stepIncrement = 1;
+            } else if (stepStr.match(/^i\+=\d+$/) || stepStr.match(/^i=i\+\d+$/)) {
+                const match = stepStr.match(/\d+/);
+                stepIncrement = parseInt(match[0]);
+            } else if (stepStr === 'i--' || stepStr === '--i') {
+                log("LOGIC ERROR: Infinite Loop detected! (i-- moves away from end).", 'err');
+                playError();
+                return;
+            } else {
+                log(`SYNTAX ERROR: Invalid step operation '${dom.step.value}'. Expected 'i++'.`, 'err');
+                playError();
+                return;
+            }
+            
+            // Check if variable is 'i'
+            const usesLoopVar = (varName === 'i');
+
+            // 2. EXECUTION SETUP
+            isRunning = true;
+            dom.start.disabled = true;
+            dom.end.disabled = true;
+            dom.step.disabled = true;
+            dom.varInput.disabled = true;
+            dom.runBtn.disabled = true;
+            dom.runBtn.classList.add('opacity-50');
+            dom.runBtn.innerText = "EXECUTING...";
+            dom.ring.style.opacity = '1';
+
+            log(`Compiling... OK.`, 'success');
+            log(`Starting Loop: i=${startVal} to i<${endVal}, Step: +${stepIncrement}`, 'info');
+
+            let i = startVal;
+            // 3. THE LOOP (Simulated via setInterval)
+            intervalId = setInterval(() => {
+                // UI Update
+                dom.display.innerText = i.toString().padStart(4, '0');
+                const progress = ((i - startVal) / (endVal - startVal)) * 100;
+                dom.bar.style.width = `${Math.min(progress, 100)}%`;
+
+                // Logic Execution
+                if (usesLoopVar) {
+                    if (i === TARGET_PIN) {
+                        unlock();
+                    }
+                } else if (varName == TARGET_PIN) {
+                     unlock();
+                }
+
+                // Sound effect (ticker)
+                if (i % (7 * stepIncrement) === 0) playBeep();
+
+                // Increment
+                i += stepIncrement;
+
+                // Stop Condition
+                if (i >= endVal) {
+                    clearInterval(intervalId);
+                    finish(i, usesLoopVar);
+                }
+            }, 5); // Speed of simulation
+        }
+
+        function finish(finalI, usesLoopVar) {
+            dom.ring.style.opacity = '0';
+            dom.resetBtn.classList.remove('hidden');
+            
+            if (!isUnlocked) {
+                 log(`FINISHED: Loop ended at ${finalI}.`, 'info');
+                 if (!usesLoopVar) {
+                    log(`ERROR: Variable '${dom.varInput.value}' is unknown or static. Expected 'i'.`, 'warn');
+                 }
+                 log("RESULT: Wallet remains LOCKED.", 'err');
+                 playError();
+            } else {
+                log(`PROGRAM ENDED. Resources wasted testing up to ${finalI-1}.`, 'info');
+            }
+        }
+
+        // --- MANUAL OVERRIDE LOGIC ---
+        function checkManualPin() {
+            if (isUnlocked) return;
+            
+            const pin = parseInt(dom.manualInput.value);
+            if (isNaN(pin)) return;
+
+            if (pin === TARGET_PIN) {
+                unlock();
+                log(`MANUAL OVERRIDE SUCCESS: PIN ${pin} entered via console.`, 'success');
+            } else {
+                // Visual feedback for wrong PIN
+                dom.manualInput.value = '';
+                dom.manualInput.placeholder = 'ERR';
+                dom.manualInput.classList.add('border-red-500', 'shake');
+                playError();
+                log(`ACCESS DENIED: PIN ${pin} is incorrect.`, 'err');
+                
+                setTimeout(() => {
+                    dom.manualInput.classList.remove('border-red-500', 'shake');
+                    dom.manualInput.placeholder = '????';
+                }, 1000);
+            }
+        }
+
+        // Event Listeners
+        dom.runBtn.addEventListener('click', runScript);
+        dom.resetBtn.addEventListener('click', reset);
+        
+        // Manual Entry Listeners
+        dom.manualBtn.addEventListener('click', checkManualPin);
+        dom.manualInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') checkManualPin();
+        });
+
+    </script>
+</body>
+</html>

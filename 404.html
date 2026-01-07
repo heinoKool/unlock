@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Seite nicht gefunden · 404</title>
+  <meta http-equiv="refresh" content="3; url=/" />
+  <style>
+    html, body { height: 100%; margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, sans-serif; background: #050505; color: #0f0; }
+    .wrap { display: grid; place-items: center; height: 100%; text-align: center; padding: 24px; }
+    a { color: #0cebeb; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div>
+      <h1 style="margin:0 0 8px">404 – Nicht gefunden</h1>
+      <p>Du wirst gleich zur Startseite weitergeleitet.</p>
+      <p><a href="/">Jetzt zurück zur Startseite</a></p>
+    </div>
+  </div>
+  <script>
+    // Fallback, falls Meta-Refresh blockiert ist
+    setTimeout(() => { location.replace('/'); }, 3000);
+  </script>
+</body>
+</html>
